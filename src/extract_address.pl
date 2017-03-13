@@ -14,6 +14,10 @@ while (my $line = <IN>) {
 }
 #print $data;
 
+## convert zenkaku number and dash -> hankaku in order to make address extraction easier
+#$data =~ tr/０-９ー－/0-9--/;
+#print $data;
+
 ## extract address
 my $res = Geography::AddressExtract::Japan->extract($data);
 print map { $_->{"city"} . $_->{"aza"} . $_->{"number"} . "\n"; }@{$res};
