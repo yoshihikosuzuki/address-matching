@@ -34,7 +34,10 @@
 ## 依存関係
 
 * `Geography::AddressExtract::Japan`モジュール(Perl)
-  * `$ git clone https://github.com/yappo/p5-Geography-AddressExtract-Japan`
-  * `$ cd Geography-AddressExtract-Japan; cd trunk`
-  * `Makefile.PL`中の`Test::More`を`'Test::More'`に変更
-  * `$ perl Makefile.PL; sudo make install`
+
+```
+$ git clone https://github.com/yappo/p5-Geography-AddressExtract-Japan
+$ cd Geography-AddressExtract-Japan; cd trunk
+Makefile.PL`中の`Test::More`を`'Test::More'`に変更
+$ perl Makefile.PL; sudo make install
+```
