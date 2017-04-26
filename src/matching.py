@@ -56,6 +56,7 @@ def run_mecab(string):
     with open(fname, 'w') as f:
         f.write(string)
     subprocess.call("mecab -O wakati -d /usr/local/lib/mecab/dic/mecab-ipadic-neologd/ %s > out.%s" % (fname, fname), shell = True)   # MeCabがバッファが足りないと言うので標準エラー出力を排除
+    #subprocess.call("mecab -O wakati %s > out.%s" % (fname, fname), shell = True)
     ret = subprocess.getoutput("head -1 out.%s | iconv -c -t UTF-8" % fname).strip().split(' ')   #  iconvでUTF-8変換できないところを排除、上に関連？
     subprocess.call("rm %s out.%s" % (fname, fname), shell = True)
 
@@ -81,16 +82,27 @@ def extract_bodysub(pr_data):
     return ret
 
 
-if __name__ == "__main__":
+def parse_content(lc_data):
 
+    comp_name = lc_data['company_name']
+    adr = lc_data['address']
+
+    #return (run_mecab(comp_name), split_address(adr))
+    print(' '.join(map(str, run_mecab(comp_name))) + "\t" + ' '.join(map(str, split_address(adr))))
+
+
+if __name__ == "__main__":
+    """
     ## プレスリリースデータから住所を抽出 -> 住所パース -> 直前20文字抽出 -> 形態素分解
     pr_data = pd.read_table(pr_fname, sep = '\t', header = None, names = ['article_id', 'date', 'bodysub'])
 
     pr_data['bodysub'] = pr_data['bodysub'].apply(lambda x: re.sub('[ã \u3000]', '', x))   # 空白を削除
     pr_data['address_set'] = pr_data['bodysub'].apply(extract_address)   # 住所の集合を抽出
     pr_data['to_be_compared'] = pr_data.apply(extract_bodysub, axis = 1)   # 住所の直前の文字列を抽出 -> (直前20文字の形態素セット、住所のパース)のタプル
+    """
 
-    ## 企業名リストも同様の処理
+    ## 企業名リストも同様の処理をしたかったが、MeCabによる分解はなんとも言えない感じなので、後から"株式会社"などは直接マスクするか
     lc_data = pd.read_table(lc_fname, sep = '\t', header = None, names = ['company_name', 'address', 'company_code'])
+    lc_data['to_be_compared'] = lc_data.apply(parse_content, axis = 1)
 
-    print(pr_data[:10])
+    #print(pr_data[:10])
