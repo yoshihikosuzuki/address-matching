@@ -1,51 +1,10 @@
 #!/usr/bin/python
 #coding: utf-8
 
+#import numpy as np
 import pandas as pd
 import re
 import subprocess
-
-root_dir = "/Users/yoshihikosuzuki/work/scirex/ar_analysis/address-matching/"
-
-data_dir = root_dir + "data/"
-src_dir = root_dir + "src/"
-
-lc_fname = data_dir + "listed_company_normalized"
-pr_fname = data_dir + "pressrelease_test.csv"
-#pr_fname = data_dir + "pressrelease_all.csv"
-#pr_info_fname = data_dir + "pressrelease_info.csv"
-
-
-def extract_address(bodysub):
-
-    tmp_fname = "tmp.bodysub"
-    with open(tmp_fname, 'w') as f:
-        f.write(bodysub)
-    ret = subprocess.getoutput(src_dir + "extract_address.pl " + tmp_fname).strip().split('\n')
-    return set(ret[2:])
-
-
-def split_address(adr):
-
-    result = subprocess.check_output("curl http://asp.ncm-git.co.jp/eCapGCWebApi/keyword/geocode/?keyword=\"%s\"" % adr.replace(" ", "").replace("　", ""), shell = True).decode('utf-8')
-
-    ret = []
-    #print(result)
-    
-    def cut_at(num, r):
-        import re
-        pat = re.compile(r'<authorizedName index="%d">(.*?)<' % num)
-        if pat.search(r):
-            return pat.search(r).groups()[0]
-            
-    for i in range(11):
-        r = cut_at(i, result)
-        #if r != None:
-        ret.append(r)
-
-    #print(ret)
-            
-    return ret
 
 
 def run_mecab(string):
@@ -64,45 +23,85 @@ def run_mecab(string):
     return set(ret)
 
 
-def extract_bodysub(pr_data):
+def compare_address(adr1, adr2):
 
-    bodysub = pr_data['bodysub']
-    address_set = pr_data['address_set']
+    adr1_list = adr1.split(' ')
+    adr2_list = adr2.split(' ')
+    
+    score = 0
+    for i in range(9):
+        if adr1_list[i] == "None" or adr2_list[i] == "None":
+            continue
+        elif adr1_list[i] != adr2_list[i]:
+            return 0
+        else:
+            score = i
 
-    offset_characters = 20   # 住所の位置から何文字前までの範囲で企業名を探すか
+    return score + 1
+    
 
-    ret = []
-    for address in address_set:
-        pat = re.compile(r'%s' % address)
-        for match in pat.finditer(bodysub):
-            start_pos = max([match.start() - offset_characters, 0])
-            bodysub_part = bodysub[start_pos: match.start()]
-            ret.append( (run_mecab(bodysub_part), split_address(address)) )
+def extract_date(article_id):
 
-    return ret
+    pre, ddmmyyyy = article_id.strip().split('_')
+    #print(article_id, pre, ddmmyyyy, ddmmyyyy[4:], ddmmyyyy[2:4], ddmmyyyy[0:2])
+    return ddmmyyyy[4:] + ddmmyyyy[2:4] + ddmmyyyy[0:2]
 
 
-def parse_content(lc_data):
+def do_matching(pr, lc_dict, lc_list):
 
-    comp_name = lc_data['company_name']
-    adr = lc_data['address']
+    #article_id = pr['article_id']
+    #sentence = pr['sentence']
+    #address = pr['address']
 
-    #return (run_mecab(comp_name), split_address(adr))
-    print(' '.join(map(str, run_mecab(comp_name))) + "\t" + ' '.join(map(str, split_address(adr))))
+    article_id, sentence, address = pr
+
+    #print(sentence)
+    for lc in lc_list:
+        if lc in sentence:
+            #print("in")
+            #print("hit:", lc)
+            score_adr = compare_address(address, lc_dict[lc][1])
+            #print(address, lc_dict[lc][1], score_adr)
+            if score_adr > 1:
+                #return pd.Series([article_id, extract_date(article_id), sentence, lc_dict[lc][0], address, lc_dict[lc][1], score_adr], index = ['article_id', 'date', 'sentence', 'comp_code', 'address_pr', 'add_ress_lc', 'score'])
+                print('\t'.join(map(str, [article_id, extract_date(article_id), sentence, lc_dict[lc][0], lc, address, lc_dict[lc][1], score_adr])))
+
+    #return None
 
 
 if __name__ == "__main__":
-    """
-    ## プレスリリースデータから住所を抽出 -> 住所パース -> 直前20文字抽出 -> 形態素分解
-    pr_data = pd.read_table(pr_fname, sep = '\t', header = None, names = ['article_id', 'date', 'bodysub'])
 
-    pr_data['bodysub'] = pr_data['bodysub'].apply(lambda x: re.sub('[ã \u3000]', '', x))   # 空白を削除
-    pr_data['address_set'] = pr_data['bodysub'].apply(extract_address)   # 住所の集合を抽出
-    pr_data['to_be_compared'] = pr_data.apply(extract_bodysub, axis = 1)   # 住所の直前の文字列を抽出 -> (直前20文字の形態素セット、住所のパース)のタプル
-    """
+    import sys
+    pr_fname, lc_fname = sys.argv[1:3]
+
+    ## プレスリリースデータから住所を抽出 -> 住所パース -> 直前20文字抽出 -> 形態素分解
+    #pr_data = pd.read_table(pr_fname, sep = '\t', header = None, names = ['article_id', 'sentence', 'address'])
+    #print(pr_data)
+    pr_list = []
+    with open(pr_fname, 'r') as f:
+        for line in f:
+            pr_list.append(tuple(line.strip().split('\t')))
 
     ## 企業名リストも同様の処理をしたかったが、MeCabによる分解はなんとも言えない感じなので、後から"株式会社"などは直接マスクするか
-    lc_data = pd.read_table(lc_fname, sep = '\t', header = None, names = ['company_name', 'address', 'company_code'])
-    lc_data['to_be_compared'] = lc_data.apply(parse_content, axis = 1)
+    #lc_data = pd.read_table(lc_fname, sep = '\t', header = None, names = ['company_code', 'company_name', 'address_list'])
+    #print(lc_data)
+    lc_dict = {}
+    with open(lc_fname, 'r') as f:
+        for line in f:
+            comp_code, comp_name, adr_list = line.strip().split('\t')
+            lc_dict[comp_name] = (comp_code, adr_list)
 
+    lc_list = lc_dict.keys()
+    #print(lc_set)
+
+    #results = pd.DataFrame(columns = ('article_id', 'date', 'sentence', 'comp_code', 'address_pr', 'add_ress_lc', 'score'))
+
+    #retults = []
+    #results = pr_data.apply(lambda x: do_matching(x, lc_dict, lc_list), axis = 1)
+    #results.dropna().to_csv(sys.stdout, sep = '\t', index = False)
+
+    for pr in pr_list:
+        do_matching(pr, lc_dict, lc_list)
+    
+    #print(results)
     #print(pr_data[:10])
