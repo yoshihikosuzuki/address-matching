@@ -1,6 +1,0 @@
-all.out.matchingの列名は以下の通り
-'article_id', 'date', 'sentence', 'comp_code', 'comp_name', 'address_pr', 'add_ress_lc', 'score'
-
-CARの計算に必要なのは(scoreの値でカットオフした) article_id, date, comp_codeのセット(重複を消すこと)
-
-他の列は結果の確認用
